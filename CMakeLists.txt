@@ -12,7 +12,7 @@ set(CMAKE_CXX_FLAGS "-msse -msse2 -msse3 -msse4 -msse4.1 -msse4.2")
 
 set(CMAKE_BUILD_TYPE "Release")
 
-find_package(catkin)
+find_package(ament_cmake REQUIRED)
 find_package(PCL REQUIRED)
 find_package(Eigen3 REQUIRED)
 
@@ -28,33 +28,51 @@ if(BUILD_VGICP_CUDA)
   link_directories(${CUDA_LIBRARY_DIRS})
 endif()
 
-###################################
-## catkin specific configuration ##
-###################################
-if(catkin_FOUND)
-  catkin_package(
-    INCLUDE_DIRS include
-    LIBRARIES fast_gicp
-  )
-endif()
 
-###########
-## Build ##
-###########
+# Build using ament
 
-add_library(fast_gicp SHARED
+include_directories(
+  include
+  include/${PROJECT_NAME}
+  ${EIGEN3_INCLUDE_DIRS}
+  ${CMAKE_CURRENT_SOURCE_DIR}
+  SYSTEM ${PCL_INCLUDE_DIRS}
+)
+
+add_library(${PROJECT_NAME} SHARED
   src/fast_gicp/gicp/lsq_registration.cpp
   src/fast_gicp/gicp/fast_gicp.cpp
   src/fast_gicp/gicp/fast_gicp_st.cpp
   src/fast_gicp/gicp/fast_vgicp.cpp
 )
-target_link_libraries(fast_gicp
+ament_target_dependencies(${PROJECT_NAME}
+  Eigen3
+  PCL
+)
+target_link_libraries(${PROJECT_NAME}
+  ${Boost_SYSTEM_LIBRARY}  # pcl_conversions requires this
   ${PCL_LIBRARIES}
 )
-target_include_directories(fast_gicp PUBLIC
-  include
-  ${PCL_INCLUDE_DIRS}
-  ${EIGEN3_INCLUDE_DIR}
+
+target_include_directories(${PROJECT_NAME}
+  PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>)
+
+ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
+
+install(
+  DIRECTORY include/
+  DESTINATION include
+)
+
+install(
+  TARGETS ${PROJECT_NAME}
+  EXPORT export_${PROJECT_NAME}
+  LIBRARY DESTINATION lib
+  ARCHIVE DESTINATION lib
+  RUNTIME DESTINATION bin
+  INCLUDES DESTINATION include
 )
 
 ### APPS ###
@@ -112,10 +130,6 @@ if(BUILD_VGICP_CUDA)
     include
     thirdparty/Eigen
     thirdparty/nvbio
-    ${catkin_INCLUDE_DIRS}
-  )
-  target_link_libraries(fast_vgicp_cuda
-    ${catkin_LIBRARIES}
   )
   cuda_add_cublas_to_target(fast_vgicp_cuda)
 
@@ -139,3 +153,5 @@ if(BUILD_test)
   target_link_libraries(gicp_test ${GTEST_LIBRARIES} ${PCL_LIBRARIES} fast_gicp)
   gtest_add_tests(TARGET gicp_test WORKING_DIRECTORY ${CMAKE_SOURCE_DIR} EXTRA_ARGS "${CMAKE_SOURCE_DIR}/data")
 endif()
+
+ament_package()
